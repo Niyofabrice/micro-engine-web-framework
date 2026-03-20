@@ -13,3 +13,7 @@ client.connect(ADDR)
 message = "Hello World!"
 
 client.send(message.encode(FORMAT))
+
+response = client.recv(1024).decode(FORMAT)
+print(response)
+client.close()

@@ -1,3 +1,5 @@
+import json
+
 class Request:
     """
     Class to help transform raw text into structured Python objects
@@ -11,7 +13,8 @@ class Request:
         if len(request.split("\r\n\r\n", 1)) >= 2:
 
             head, body = request.split("\r\n\r\n", 1)
-            self.body = body
+            if body.strip():
+                self.body = json.loads(body)
             
             if len(head.split("\r\n", 1)) >= 2:
                 request_line, headers = head.split("\r\n", 1)

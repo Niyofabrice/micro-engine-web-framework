@@ -32,33 +32,36 @@ class MicroEngine:
         """
         print(f"[NEW CONNECTION] Client{addr} connected.\n")
 
-        message = await self.loop.sock_recv(conn, 1024)
-        decoded_message = message.decode(self.__FORMAT)
-        request = Request(decoded_message)
+        try:
+            message = await self.loop.sock_recv(conn, 1024)
+            decoded_message = message.decode(self.__FORMAT)
+            request = Request(decoded_message)
 
-        # check if request is a valid Http request
-        if request.is_valid == False:
-            response = Response(status_code=400, status_message="Bad Request", headers={"Content-Type": "text/html"}, message="<h1>Invalid Request</h1>")
-            await self.loop.sock_sendall(conn, response.__str__().encode(self.__FORMAT))
-            conn.close()
-        else:
-            function = self.router.routes.get((request.path, request.method))
-            if function == None:
-                response = Response(status_code=404, status_message="Not Found", headers={"Content-Type": "text/html"}, message="<h1>Resource not Found</h1>")
+            if request.is_valid == False:
+                response = Response(status_code=400, status_message="Bad Request", headers={"Content-Type": "text/html"}, message="<h1>Invalid Request</h1>")
                 await self.loop.sock_sendall(conn, response.__str__().encode(self.__FORMAT))
-                conn.close()
             else:
-                try:
-                    response_obj = await function(request)
-                except Exception:
-                    print(Exception.with_traceback())
-                    response = Response(status_code=500, status_message="Interal Server Error", headers={"Content-Type": "text/html"}, message="<h1>Interal Server Error</h1>")
+                function = self.router.routes.get((request.path, request.method))
+                if function == None:
+                    response = Response(status_code=404, status_message="Not Found", headers={"Content-Type": "text/html"}, message="<h1>Resource not Found</h1>")
                     await self.loop.sock_sendall(conn, response.__str__().encode(self.__FORMAT))
-                    conn.close()
                 else:
-                    await self.loop.sock_sendall(conn, response_obj.__str__().encode(self.__FORMAT))
-                    conn.close()
-
+                    try:
+                        response_obj = await function(request)
+                        if not isinstance(response_obj, Response):
+                            print("Error: Malformed Response")
+                            response = Response(status_code=500, status_message="Interal Server Error", headers={"Content-Type": "text/html"}, message="<h1>Interal Server Error</h1>")
+                            await self.loop.sock_sendall(conn, response.__str__().encode(self.__FORMAT))
+                    except Exception as ex:
+                        print("Error:", ex)
+                        response = Response(status_code=500, status_message="Interal Server Error", headers={"Content-Type": "text/html"}, message="<h1>Interal Server Error</h1>")
+                        await self.loop.sock_sendall(conn, response.__str__().encode(self.__FORMAT))
+                    else:
+                        await self.loop.sock_sendall(conn, response_obj.__str__().encode(self.__FORMAT))
+        except asyncio.exceptions.CancelledError:
+            print("Task was cancelled")
+        finally:
+            conn.close()
 
 
     async def start(self):
@@ -72,6 +75,7 @@ class MicroEngine:
             while True:
                 conn, addr =  await self.loop.sock_accept(self.server)
                 self.loop.create_task(self._handle_client_connection(conn, addr))
-        except (KeyboardInterrupt, asyncio.exceptions.CancelledError, ConnectionAbortedError):
+        except asyncio.exceptions.CancelledError:
             self.server.close()
+            print("Server shutting down gracefully...")
         

@@ -1,9 +1,9 @@
 class Response:
-    def __init__(self, http_version="HTTP/1.1", status_code=None, status_message="", headers={}, message=""):
+    def __init__(self, http_version="HTTP/1.1", status_code=None, status_message="", headers=None, message=""):
         self.http_version = http_version
         self.status_code = status_code
         self.status_message = status_message
-        self.headers = headers
+        self.headers = headers if headers is not None else {}
         if "Content-Length" not in headers:
             self.headers |= {"Content-Length": f"{len(message)}"}
         self.message = message

@@ -1,8 +1,8 @@
-from server import MicroEngine
-from parser.response import Response
 import asyncio
 
-from models import User, Fruit
+from models import Fruit, User
+from parser.response import Response
+from server import MicroEngine
 
 app = MicroEngine()
 

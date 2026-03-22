@@ -3,6 +3,7 @@ from parser.request import Request
 from parser.response import Response
 from router import Router
 import asyncio
+from contextlib import ExitStack
 
 class MicroEngine:
     __PORT = 8080
@@ -16,8 +17,11 @@ class MicroEngine:
         self.server.setblocking(False)
         self.loop = None
         self.router = Router()
+        self.middlewares = []
 
 
+    def add_middleware(self, middleware_cls):
+        self.middlewares.append(middleware_cls)
 
 
     async def _handle_client_connection(self, conn, addr):
@@ -47,11 +51,14 @@ class MicroEngine:
                     await self.loop.sock_sendall(conn, response.__str__().encode(self.__FORMAT))
                 else:
                     try:
-                        response_obj = await function(request)
-                        if not isinstance(response_obj, Response):
-                            print("Error: Malformed Response")
-                            response = Response(status_code=500, status_message="Interal Server Error", headers={"Content-Type": "text/html"}, message="<h1>Interal Server Error</h1>")
-                            await self.loop.sock_sendall(conn, response.__str__().encode(self.__FORMAT))
+                        with ExitStack() as stack:
+                            for mw_cls in self.middlewares:
+                                stack.enter_context(mw_cls())
+                            response_obj = await function(request)
+                            if not isinstance(response_obj, Response):
+                                print("Error: Malformed Response")
+                                response = Response(status_code=500, status_message="Interal Server Error", headers={"Content-Type": "text/html"}, message="<h1>Interal Server Error</h1>")
+                                await self.loop.sock_sendall(conn, response.__str__().encode(self.__FORMAT))
                     except Exception as ex:
                         print("Error:", ex)
                         response = Response(status_code=500, status_message="Interal Server Error", headers={"Content-Type": "text/html"}, message="<h1>Interal Server Error</h1>")
